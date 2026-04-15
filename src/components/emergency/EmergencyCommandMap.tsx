@@ -54,7 +54,7 @@ export function EmergencyCommandMap({
 
     if (!hasGoogleMapsApiKey()) {
       el.innerHTML =
-        '<div class="flex h-full items-center justify-center bg-zinc-900 p-4 text-center text-sm text-amber-200/90">Add <code class="mx-1 rounded bg-black/40 px-1">VITE_GOOGLE_MAPS_API_KEY</code> to <code class="mx-1 rounded bg-black/40 px-1">.env.local</code></div>'
+        '<div class="flex h-full items-center justify-center bg-zinc-900 p-4 text-center text-sm text-amber-200/90">Maps key missing — set <code class="mx-1 rounded bg-black/40 px-1">VITE_GOOGLE_MAPS_API_KEY</code> in <code class="mx-1 rounded bg-black/40 px-1">.env.local</code> (dev) or <code class="mx-1 rounded bg-black/40 px-1">GOOGLE_MAPS_API_KEY</code> on Cloud Run (prod).</div>'
       return
     }
 

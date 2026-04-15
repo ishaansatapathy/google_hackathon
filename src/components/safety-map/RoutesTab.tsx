@@ -115,7 +115,7 @@ export function RoutesTab({ trafficRouteEvent, isActive, sadakReports }: RoutesT
 
     if (!hasGoogleMapsApiKey()) {
       el.innerHTML =
-        '<div class="flex h-full items-center justify-center bg-zinc-900 p-4 text-center text-xs text-amber-200/90">Add VITE_GOOGLE_MAPS_API_KEY to .env.local</div>'
+        '<div class="flex h-full items-center justify-center bg-zinc-900 p-4 text-center text-xs text-amber-200/90">Maps key missing — .env.local (dev) or GOOGLE_MAPS_API_KEY on Cloud Run (prod).</div>'
       return
     }
 

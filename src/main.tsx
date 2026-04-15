@@ -7,6 +7,7 @@ import './index.css'
 import App from './App.tsx'
 import { SosProvider } from '@/context/SosContext'
 import { clerkPublishableKey } from '@/lib/clerkConfig'
+import { ensureRuntimeMapsEnv } from '@/lib/runtimeMapsEnv'
 import { RootErrorBoundary } from './RootErrorBoundary.tsx'
 
 const appTree = (
@@ -15,20 +16,25 @@ const appTree = (
   </SosProvider>
 )
 
-createRoot(document.getElementById('root')!).render(
-  <RootErrorBoundary>
-    {clerkPublishableKey ? (
-      <ClerkProvider
-        publishableKey={clerkPublishableKey}
-        appearance={{
-          baseTheme: dark,
-          variables: { colorPrimary: '#EE3F2C', colorTextOnPrimaryBackground: '#ffffff' },
-        }}
-      >
-        {appTree}
-      </ClerkProvider>
-    ) : (
-      appTree
-    )}
-  </RootErrorBoundary>,
-)
+async function bootstrap() {
+  await ensureRuntimeMapsEnv()
+  createRoot(document.getElementById('root')!).render(
+    <RootErrorBoundary>
+      {clerkPublishableKey ? (
+        <ClerkProvider
+          publishableKey={clerkPublishableKey}
+          appearance={{
+            baseTheme: dark,
+            variables: { colorPrimary: '#EE3F2C', colorTextOnPrimaryBackground: '#ffffff' },
+          }}
+        >
+          {appTree}
+        </ClerkProvider>
+      ) : (
+        appTree
+      )}
+    </RootErrorBoundary>,
+  )
+}
+
+void bootstrap()

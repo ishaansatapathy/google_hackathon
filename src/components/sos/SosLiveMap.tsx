@@ -42,7 +42,7 @@ export function SosLiveMap({
 
     if (!hasGoogleMapsApiKey()) {
       el.innerHTML =
-        '<div class="flex h-full items-center justify-center bg-[#0a1628] p-2 text-center text-[10px] text-sky-200/80">Maps API key missing (.env.local)</div>'
+        '<div class="flex h-full items-center justify-center bg-[#0a1628] p-2 text-center text-[10px] text-sky-200/80">Maps key missing — .env.local or Cloud Run GOOGLE_MAPS_API_KEY</div>'
       return
     }
 

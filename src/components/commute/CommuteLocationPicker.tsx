@@ -42,7 +42,7 @@ export function CommuteLocationPicker() {
 
     if (!hasGoogleMapsApiKey()) {
       el.innerHTML =
-        '<div class="flex h-full items-center justify-center bg-zinc-900 p-3 text-center text-[11px] text-amber-200/90">Set <code class="mx-1 rounded bg-black/40 px-1">VITE_GOOGLE_MAPS_API_KEY</code> in .env.local</div>'
+        '<div class="flex h-full items-center justify-center bg-zinc-900 p-3 text-center text-[11px] text-amber-200/90">Maps key — .env.local or Cloud Run <code class="mx-1 rounded bg-black/40 px-1">GOOGLE_MAPS_API_KEY</code>.</div>'
       return
     }
 
