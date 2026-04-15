@@ -54,7 +54,10 @@ export function TargoHero() {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 sm:justify-end">
-            <nav className="flex flex-wrap items-center gap-5 text-[13px] font-medium tracking-wide text-white/85">
+            <nav
+              className="flex flex-wrap items-center gap-5 text-[13px] font-medium tracking-wide text-white/85"
+              aria-label="Primary"
+            >
               {NAV_LINKS.map((l) => (
                 <a key={`${l.href}-${l.label}`} href={l.href} className="transition hover:text-white">
                   {l.label}

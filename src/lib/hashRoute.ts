@@ -18,6 +18,7 @@ function normalizeTab(s: string | undefined): HomeTab {
   return 'features'
 }
 
+/** Exported for unit tests and deep links. */
 export function parseHash(): ParsedHash {
   const raw = window.location.hash.replace(/^#/, '').trim() || '/home'
   if (
