@@ -34,26 +34,33 @@
 
 ---
 
-## 3) सबसे ज़रूरी: Vite env vars (**build time**)
+## 3) API keys — Maps (आसान तरीका) + बाकी Vite keys
 
-Vite **`VITE_*`** values को **build** के समय कोड में डाल देता है। इसलिए Cloud पर **`npm run build`** चलने से पहले ये variables **build environment** में होने चाहिए।
+### Google Maps (Cloud Run — **rebuild की ज़रूरत नहीं**)
 
-UI में ढूंढो:
+**Cloud Run** → service → **Edit & deploy new revision** → **Variables & secrets** → **Add variable**:
 
-- **Cloud Run** → service → **Edit & deploy new revision** →  
-  **Variables & secrets** में अक्सर अलग tabs होते हैं: **Build-time** vs **Runtime**।  
-- जहाँ **Build** / **Build environment variables** लिखा हो, वहाँ ये add करो (अपनी असली values से):
+| Name | Value |
+|------|--------|
+| `GOOGLE_MAPS_API_KEY` | वही key जो Google Cloud Console → Credentials में है (Maps JavaScript API on) |
+
+यह key runtime पर `/runtime-env.js` से browser को मिलती है। Deploy / revision save के बाद map चलना चाहिए।
+
+**Referrer restriction:** API key में **Website restrictions** में अपनी Cloud Run URL add करो, जैसे  
+`https://google-hackathon01-1030690806777.europe-west1.run.app/*`  
+या `https://*.run.app/*` (कम strict)।
+
+### Clerk / Anthropic / WS — अभी भी **build time** (`VITE_*`)
+
+ये अभी भी Vite bundle में build के समय जाते हैं — **Cloud Build** के **build environment variables** में set करो, फिर redeploy:
 
 | Variable | Notes |
 |----------|--------|
-| `VITE_GOOGLE_MAPS_API_KEY` | Maps JS API enabled key |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk dashboard से publishable key |
-| `VITE_ANTHROPIC_API_KEY` | अगर Congestion / Claude features चाहिए |
-| `VITE_WS_URL` | Production WebSocket URL (अगर तुमने अलग server deploy किया हो; नहीं तो default localhost जैसा production में काम नहीं करेगा) |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk dashboard |
+| `VITE_ANTHROPIC_API_KEY` | Jaam / Claude features |
+| `VITE_WS_URL` | Production WebSocket URL |
 
-**Runtime** में सिर्फ `VITE_*` set करने से **पुराना built JS change नहीं होगा** — नई revision के लिए **dobara build** चाहिए।
-
-Local पर keys **`targo-hero/.env.local`** में रखो; यह file git में नहीं जानी चाहिए।
+Local पर keys **`.env.local`** में रखो; commit मत करो।
 
 ---
 
@@ -75,7 +82,8 @@ Build args के लिए `cloudbuild.yaml` या Console में build env
 - [ ] Build context = **repo में जहाँ `package.json` है** (`google_hackathon` के लिए अक्सर **खाली**)
 - [ ] Entry point = **empty**
 - [ ] Function target = **empty**
-- [ ] `VITE_*` keys **build** env में
+- [ ] Maps: Cloud Run में **`GOOGLE_MAPS_API_KEY`** (runtime) + API key referrer में **`.run.app`** URL
+- [ ] Clerk / Anthropic / WS: **`VITE_*`** **build** env में (जहाँ Cloud Build चलता है)
 - [ ] Deploy के बाद URL खोलकर Maps / Clerk test करो
 
 ---
@@ -83,6 +91,6 @@ Build args के लिए `cloudbuild.yaml` या Console में build env
 ## Troubleshooting
 
 - **`invalid app path 'targo-hero': lstat targo-hero: no such file or directory`:** GitHub repo के root पर `targo-hero` folder **नहीं** है — trigger में **Build context directory खाली** करो और Save करके दोबारा build चलाओ।
-- **Blank map / “API key” errors:** build time पर `VITE_GOOGLE_MAPS_API_KEY` missing था — env set करके **rebuild + redeploy**।
-- **404 on refresh:** SPA है; `serve -s` already **history fallback** देता है।
+- **Blank map / “API key” errors:** Cloud Run में **`GOOGLE_MAPS_API_KEY`** add करो; Maps JavaScript API on हो; key की **HTTP referrer** में site URL allow हो।
+- **404 on refresh:** SPA है; server **rewrites** से `index.html` fallback देता है।
 - **Port:** Cloud Run `PORT` set करता है; `npm start` उसी को use करता है।

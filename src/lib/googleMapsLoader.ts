@@ -2,12 +2,23 @@ import { importLibrary, setOptions } from '@googlemaps/js-api-loader'
 
 let loadPromise: Promise<typeof google> | null = null
 
-/** Loads Maps JS API once. Requires `VITE_GOOGLE_MAPS_API_KEY` and Maps JavaScript API enabled in GCP. */
+function getGoogleMapsKey(): string | undefined {
+  const fromVite = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
+  if (fromVite?.trim()) return fromVite.trim()
+  if (typeof window !== 'undefined' && window.__GOOGLE_MAPS_API_KEY__?.trim()) {
+    return window.__GOOGLE_MAPS_API_KEY__.trim()
+  }
+  return undefined
+}
+
+/** Loads Maps JS API once. Key: `.env.local` (dev) or Cloud Run `GOOGLE_MAPS_API_KEY` / `VITE_GOOGLE_MAPS_API_KEY` (runtime). */
 export function loadGoogleMaps(): Promise<typeof google> {
-  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
+  const key = getGoogleMapsKey()
   if (!key?.trim()) {
     return Promise.reject(
-      new Error('Missing VITE_GOOGLE_MAPS_API_KEY — add it to .env.local (see .env.example).'),
+      new Error(
+        'Missing Google Maps API key — add VITE_GOOGLE_MAPS_API_KEY to .env.local (dev) or GOOGLE_MAPS_API_KEY in Cloud Run (prod).',
+      ),
     )
   }
   if (!loadPromise) {
@@ -25,6 +36,5 @@ export function loadGoogleMaps(): Promise<typeof google> {
 }
 
 export function hasGoogleMapsApiKey(): boolean {
-  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
-  return Boolean(key?.trim())
+  return Boolean(getGoogleMapsKey()?.trim())
 }
