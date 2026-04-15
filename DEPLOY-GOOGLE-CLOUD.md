@@ -14,13 +14,18 @@
 
 ## 2) GitHub से deploy (Cloud Run “Source” / continuous deploy)
 
-अगर repo root में कई folders हैं और `package.json` **`targo-hero/`** के अंदर है:
+**सबसे ज़रूरी:** **Build context directory** = वह folder जहाँ GitHub repo में **`package.json`** दिखता है — local PC पर folder का नाम ज़रूरी नहीं।
+
+| तुम्हारा repo कैसा है | **Build context directory** में क्या भरो |
+|------------------------|------------------------------------------|
+| **`google_hackathon` जैसा repo** — root पर ही `package.json` है (GitHub पर `targo-hero` नाम का folder **नहीं** है) | **खाली छोड़ो** या **`.`** या **`/`** — **`targo-hero` मत लिखो** |
+| Monorepo — root में कई apps, और `package.json` किसी subfolder में है (जैसे `apps/web/`) | वही subfolder path, जैसे `apps/web` |
 
 | Field / जगह | क्या भरना है |
 |-------------|----------------|
 | **Repository** | अपना GitHub repo (जैसे `ishaansatapathy/google_hackathon`) |
 | **Branch** | `main` (या जो तुम use करते हो) |
-| **Build context directory** (या “Root directory” / “Source directory”) | **`targo-hero`** — वही folder जहाँ इस ऐप का `package.json` है |
+| **Build context directory** | ऊपर वाली table देखो — **इस project के लिए खाली** |
 | **Entry point** | **खाली छोड़ो** — Node ऐप के लिए default `npm start` चलेगा |
 | **Function target** | **खाली छोड़ो** — यह Cloud Functions के लिए होता है, साधारण web app नहीं |
 
@@ -57,7 +62,7 @@ Local पर keys **`targo-hero/.env.local`** में रखो; यह file g
 Cloud SDK install करके, repo में `targo-hero` पर:
 
 ```bash
-cd targo-hero
+# repo clone के बाद जहाँ package.json है वहीं से:
 gcloud run deploy SERVICE_NAME --source . --region REGION
 ```
 
@@ -67,7 +72,7 @@ Build args के लिए `cloudbuild.yaml` या Console में build env
 
 ## 5) Checklist
 
-- [ ] Build context = **`targo-hero`** (अगर monorepo है)
+- [ ] Build context = **repo में जहाँ `package.json` है** (`google_hackathon` के लिए अक्सर **खाली**)
 - [ ] Entry point = **empty**
 - [ ] Function target = **empty**
 - [ ] `VITE_*` keys **build** env में
@@ -77,6 +82,7 @@ Build args के लिए `cloudbuild.yaml` या Console में build env
 
 ## Troubleshooting
 
+- **`invalid app path 'targo-hero': lstat targo-hero: no such file or directory`:** GitHub repo के root पर `targo-hero` folder **नहीं** है — trigger में **Build context directory खाली** करो और Save करके दोबारा build चलाओ।
 - **Blank map / “API key” errors:** build time पर `VITE_GOOGLE_MAPS_API_KEY` missing था — env set करके **rebuild + redeploy**।
 - **404 on refresh:** SPA है; `serve -s` already **history fallback** देता है।
 - **Port:** Cloud Run `PORT` set करता है; `npm start` उसी को use करता है।
