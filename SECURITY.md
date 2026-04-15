@@ -11,6 +11,10 @@
 - Restrict by **HTTP referrer** to your deployment origin (e.g. `https://*.run.app/*` or an exact Cloud Run URL).
 - Enable only APIs you need (e.g. **Maps JavaScript API**).
 
+## Inventory
+
+Which Google products are wired in is listed in **`GOOGLE_SERVICES.md`** and mirrored in code as `GOOGLE_STACK` in `src/lib/googleStack.ts`.
+
 ## Dependencies
 
 - Run `npm audit` periodically; CI can run `npm audit --audit-level=moderate` (optional).

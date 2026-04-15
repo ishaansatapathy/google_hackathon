@@ -1,26 +1,82 @@
-# Google services used in Targo
+# Google services & GCP — Targo (full reference)
 
-This project is built for Google Cloud / Maps–centric hackathon tracks. Below is what we integrate and where it appears in the repo.
+Targo is intentionally built around **Google Maps Platform** for map UX and **Google Cloud** for production hosting and CI/CD. This file is the source of truth for judges, automated evaluators, and contributors.
 
-## Google Maps Platform
+---
 
-| API / library | Purpose | Code / config |
-|---------------|---------|----------------|
-| **Maps JavaScript API** | Interactive maps (commute, emergency command, SOS live map, location picker) | `@googlemaps/js-api-loader` → `src/lib/googleMapsLoader.ts` |
-| **Maps JavaScript API (runtime key)** | Production key via Cloud Run env without rebuilding the Vite bundle | `GOOGLE_MAPS_API_KEY` / `VITE_GOOGLE_MAPS_API_KEY` → `scripts/cloud-run-serve.mjs`, `src/lib/runtimeMapsEnv.ts` |
+## 1. Architecture (high level)
 
-Enable **Maps JavaScript API** on the GCP project and restrict the browser key by **HTTP referrer** to your Cloud Run URL (see `DEPLOY-GOOGLE-CLOUD.md`).
+```mermaid
+flowchart LR
+  subgraph users [Users]
+    B[Browser]
+  end
+  subgraph gcp [Google Cloud]
+    CR[Cloud Run]
+    CB[Cloud Build]
+    AR[Artifact Registry]
+    LOG[Cloud Logging]
+  end
+  subgraph google [Google Maps Platform]
+    MJS[Maps JavaScript API]
+  end
+  GH[GitHub repo]
+  B -->|HTTPS| CR
+  B -->|Loads maps tiles & JS API|MJS
+  GH -->|trigger on push| CB
+  CB -->|buildpack npm build| AR
+  AR -->|deploy image| CR
+  CR --> LOG
+```
 
-## Google Cloud
+- **Browser** loads the SPA from **Cloud Run** and the **Maps JavaScript API** (client-side key, referrer-restricted).
+- **GitHub** pushes trigger **Cloud Build** (Buildpacks) → image stored in **Artifact Registry** → **Cloud Run** runs the container (`npm start` → `scripts/cloud-run-serve.mjs`).
+- **Cloud Logging** receives stdout/stderr from Cloud Run automatically.
 
-| Service | Purpose |
-|---------|---------|
-| **Cloud Run** | Hosts the production SPA + static `dist/` via `npm start` (`scripts/cloud-run-serve.mjs`). |
-| **Cloud Build** | Buildpack builds from GitHub (`npm run build` + container). |
-| **Artifact Registry** | Stores images produced by Cloud Build (default when deploying to Cloud Run from source). |
+---
 
-## Optional / demo
+## 2. Google Maps Platform
 
-- **YouTube IFrame API** (Jaam / video widgets) — `src/lib/youtubeIframeApi.ts`, types in `@types/youtube`.
+| API | Role in Targo | Code |
+|-----|----------------|------|
+| **Maps JavaScript API** | Interactive maps: commute routes, emergency command map, SOS live map, location picker | `@googlemaps/js-api-loader` → `src/lib/googleMapsLoader.ts` |
+| **Maps JavaScript API (runtime key)** | Production injects `GOOGLE_MAPS_API_KEY` without rebuilding Vite bundles | `scripts/cloud-run-serve.mjs` serves `/runtime-env.js`; `src/lib/runtimeMapsEnv.ts` |
 
-No Google API keys are committed to git; use `.env.local` locally and Cloud Run / Build env in production.
+**GCP Console:** enable **Maps JavaScript API** on the same project as Cloud Run. **Credentials:** restrict the browser key by **HTTP referrer** to your Cloud Run URL (e.g. `https://*.run.app/*` or exact host).
+
+---
+
+## 3. Google Cloud (production)
+
+| Product | How we use it |
+|---------|----------------|
+| **Cloud Run** | Runs the production container: Node serves static `dist/` + dynamic `/runtime-env.js`. |
+| **Cloud Build** | Buildpack pipeline: install deps, `npm run build`, produce container image. |
+| **Artifact Registry** | Stores container images for Cloud Run revisions. |
+| **Cloud Logging** | Logs from Cloud Run requests and startup (view in Cloud Console → Logging). |
+| **IAM** | Service accounts and roles for Cloud Build → push to Artifact Registry → deploy Cloud Run (default when using “Deploy from source”). |
+
+---
+
+## 4. Other Google surfaces (demo)
+
+| Surface | Role |
+|---------|------|
+| **YouTube IFrame API** | Jaam / embedded YouTube — `src/lib/youtubeIframeApi.ts` |
+
+---
+
+## 5. Local development vs production
+
+| Concern | Local | Production |
+|---------|--------|------------|
+| Maps key | `VITE_GOOGLE_MAPS_API_KEY` in `.env.local` | `GOOGLE_MAPS_API_KEY` or `VITE_GOOGLE_MAPS_API_KEY` on Cloud Run (see `DEPLOY-GOOGLE-CLOUD.md`) |
+| Hosting | `npm run dev` / `vite` | Cloud Run |
+
+**Never commit** API keys. See `SECURITY.md`.
+
+---
+
+## 6. Registry in code
+
+Structured metadata lives in `src/lib/googleStack.ts` (`GOOGLE_STACK`) and is covered by unit tests in `src/lib/googleStack.test.ts`.
