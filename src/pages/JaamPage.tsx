@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
+import { AuthHeaderChrome } from '@/components/auth/AuthHeaderChrome'
 import { JamBottomBar } from '@/components/jaam/JamBottomBar'
 import { JamChatTab, type ChatLine } from '@/components/jaam/JamChatTab'
 import { JamMusicTab } from '@/components/jaam/JamMusicTab'
@@ -195,18 +196,21 @@ Return ONLY a JSON object with no markdown:
 
   return (
     <div className="flex min-h-dvh flex-col bg-black text-white">
-      <div className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-white/80"
-          onClick={() => setHash({ page: 'home', tab: 'features' })}
-        >
-          <ArrowLeft className="mr-1 size-4" />
-          Home
-        </Button>
-        <span className="text-xs font-semibold uppercase tracking-wider text-red-400/90">Jaam</span>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-white/80"
+            onClick={() => setHash({ page: 'home', tab: 'features' })}
+          >
+            <ArrowLeft className="mr-1 size-4" />
+            Home
+          </Button>
+          <span className="text-xs font-semibold uppercase tracking-wider text-red-400/90">Jaam</span>
+        </div>
+        <AuthHeaderChrome compact />
       </div>
 
       <JamStatusHeader

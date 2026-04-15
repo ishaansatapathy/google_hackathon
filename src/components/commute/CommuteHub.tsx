@@ -1,14 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigation2, TrendingUp, Users } from 'lucide-react'
 
 import { FriendlyNeighbourhoodPanel } from '@/components/commute/FriendlyNeighbourhoodPanel'
 import { CommuteLocationPicker } from '@/components/commute/CommuteLocationPicker'
+import { SadakBolo } from '@/components/sadakbolo/SadakBolo'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CommuteLocationsProvider } from '@/context/CommuteLocationsContext'
+import { CommuteDrivingRouteProvider } from '@/context/CommuteDrivingRouteContext'
+import { CommuteLocationsProvider, useCommuteLocations } from '@/context/CommuteLocationsContext'
 import { useCommuteWebSocket } from '@/hooks/useCommuteWebSocket'
 import { useHashRoute } from '@/hooks/useHashRoute'
+import { fetchComplaints } from '@/lib/sadakbolo/api'
+import type { SadakReport } from '@/lib/sadakbolo/types'
 import { cn } from '@/lib/utils'
 
+import { RouteCorridorHintsPanel } from './RouteCorridorHintsPanel'
 import { CongestionPredictorTab } from './CongestionPredictorTab'
 import { RoutesTab } from '../safety-map/RoutesTab'
 
@@ -22,8 +27,18 @@ function CommuteHubInner() {
   const mode = route.page === 'commute' ? route.commute : 'hub'
   const isHub = mode === 'hub'
 
+  const { from, to } = useCommuteLocations()
   const [tab, setTab] = useState<string>(T.congestion)
+  const [sadakReports, setSadakReports] = useState<SadakReport[]>([])
   const { status, corridors, lastSnapshotTs, trafficRouteEvent } = useCommuteWebSocket(isHub)
+
+  useEffect(() => {
+    void fetchComplaints().then(setSadakReports)
+  }, [])
+
+  const reportLat = (from.lat + to.lat) / 2
+  const reportLng = (from.lng + to.lng) / 2
+  const reportLabel = 'Midpoint of your From → To route (demo anchor)'
 
   const sectionPad = isHub
     ? 'px-8 py-16 md:px-16 md:py-24'
@@ -63,6 +78,7 @@ function CommuteHubInner() {
         </nav>
 
         {isHub ? (
+          <>
           <div className="flex flex-col gap-10 md:gap-12">
             <header className="space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#EE3F2C]">
@@ -78,6 +94,8 @@ function CommuteHubInner() {
             </header>
 
             <CommuteLocationPicker />
+
+            <RouteCorridorHintsPanel />
 
             <Tabs
               value={tab}
@@ -107,10 +125,19 @@ function CommuteHubInner() {
                 <RoutesTab
                   trafficRouteEvent={trafficRouteEvent}
                   isActive={tab === T.routes}
+                  sadakReports={sadakReports}
                 />
               </TabsContent>
             </Tabs>
           </div>
+          <SadakBolo
+            reportLat={reportLat}
+            reportLng={reportLng}
+            locationLabel={reportLabel}
+            existingReports={sadakReports}
+            onSubmitted={(r) => setSadakReports((prev) => [...prev, r])}
+          />
+          </>
         ) : (
           <div className="flex flex-col gap-10 md:gap-12">
             <header className="space-y-4">
@@ -139,7 +166,9 @@ function CommuteHubInner() {
 export function CommuteHub() {
   return (
     <CommuteLocationsProvider>
-      <CommuteHubInner />
+      <CommuteDrivingRouteProvider>
+        <CommuteHubInner />
+      </CommuteDrivingRouteProvider>
     </CommuteLocationsProvider>
   )
 }

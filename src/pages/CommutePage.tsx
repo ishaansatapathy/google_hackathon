@@ -1,6 +1,9 @@
 import { ArrowLeft } from 'lucide-react'
 
+import { AuthHeaderChrome } from '@/components/auth/AuthHeaderChrome'
+import { CongestionLiveStrip } from '@/components/commute/CongestionLiveStrip'
 import { HeroMascot } from '@/components/HeroMascot'
+import { SosHeaderButton } from '@/components/SosHeaderButton'
 import { TargoLogo } from '@/components/TargoLogo'
 import { SiteFooter } from '@/components/sections/SiteFooter'
 import { SafetyMap } from '@/components/safety-map/SafetyMap'
@@ -36,15 +39,21 @@ export function CommutePage() {
               ? 'Friendly neighbourhood — same-route ride match (sim)'
               : 'Commute — congestion & routes'}
           </p>
-          <a
-            href="#/home/features"
-            className="hidden px-4 py-2 text-xs font-semibold text-white sm:inline-block"
-            style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
-          >
-            Back to site
-          </a>
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <AuthHeaderChrome compact />
+            <SosHeaderButton className="text-xs" />
+            <a
+              href="#/home/features"
+              className="hidden px-4 py-2 text-xs font-semibold text-white sm:inline-block"
+              style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
+            >
+              Back to site
+            </a>
+          </div>
         </div>
       </header>
+
+      {!isNeighbourhood ? <CongestionLiveStrip /> : null}
 
       {isNeighbourhood ? <HeroMascot /> : null}
 

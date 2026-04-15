@@ -1,3 +1,5 @@
+import { AuthHeaderChrome } from '@/components/auth/AuthHeaderChrome'
+import { SosHeaderButton } from '@/components/SosHeaderButton'
 import { TargoLogo } from '@/components/TargoLogo'
 import { CLIP_BTN, VIDEO_URL } from '@/lib/targo'
 
@@ -5,6 +7,7 @@ const NAV_LINKS = [
   { href: '#/home/features', label: 'Home' },
   { href: '#/commute', label: 'Commute' },
   { href: '#/jaam', label: 'Jaam' },
+  { href: '#/emergency', label: 'Emergency services' },
   { href: '#/home/features', label: 'Product' },
   { href: '#/home/about', label: 'About' },
   { href: '#/home/contact', label: 'Contact' },
@@ -34,18 +37,21 @@ export function TargoHero() {
 
       <div className="relative z-10 flex min-h-svh flex-col px-8 py-6 md:px-16 md:py-8">
         <header className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-3">
             <TargoLogo />
-            <a
-              href="#/commute/neighbourhood"
-              className="inline-flex max-w-52 shrink-0 flex-col items-center gap-0.5 px-3 py-2 text-center text-white sm:hidden"
-              style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
-            >
-              <span className="text-xs font-semibold leading-tight">Friendly neighbourhood</span>
-              <span className="text-[9px] font-medium leading-snug text-white/88">
-                Congestion, routes & same-route rides
-              </span>
-            </a>
+            <div className="flex shrink-0 items-center gap-2">
+              <SosHeaderButton className="sm:hidden" />
+              <a
+                href="#/commute/neighbourhood"
+                className="inline-flex max-w-52 shrink-0 flex-col items-center gap-0.5 px-3 py-2 text-center text-white sm:hidden"
+                style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
+              >
+                <span className="text-xs font-semibold leading-tight">Friendly neighbourhood</span>
+                <span className="text-[9px] font-medium leading-snug text-white/88">
+                  Congestion, routes & same-route rides
+                </span>
+              </a>
+            </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 sm:justify-end">
             <nav className="flex flex-wrap items-center gap-5 text-[13px] font-medium tracking-wide text-white/85">
@@ -55,16 +61,20 @@ export function TargoHero() {
                 </a>
               ))}
             </nav>
-            <a
-              href="#/commute/neighbourhood"
-              className="hidden min-w-52 shrink-0 flex-col items-center justify-center gap-1 px-5 py-2.5 text-center text-white sm:inline-flex"
-              style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
-            >
-              <span className="text-[13px] font-semibold leading-tight">Friendly neighbourhood</span>
-              <span className="max-w-56 text-[10px] font-medium leading-snug text-white/88">
-                Same-route ride requests — pool the trip, skip the solo cab
-              </span>
-            </a>
+            <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
+              <AuthHeaderChrome />
+              <SosHeaderButton className="hidden sm:inline-flex" />
+              <a
+                href="#/commute/neighbourhood"
+                className="hidden min-w-52 shrink-0 flex-col items-center justify-center gap-1 px-5 py-2.5 text-center text-white sm:inline-flex"
+                style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
+              >
+                <span className="text-[13px] font-semibold leading-tight">Friendly neighbourhood</span>
+                <span className="max-w-56 text-[10px] font-medium leading-snug text-white/88">
+                  Same-route ride requests — pool the trip, skip the solo cab
+                </span>
+              </a>
+            </div>
           </div>
         </header>
 

@@ -1,13 +1,34 @@
+import { ClerkProvider } from '@clerk/clerk-react'
+import { dark } from '@clerk/themes'
 import { createRoot } from 'react-dom/client'
 
 import './index.css'
-import 'leaflet/dist/leaflet.css'
 
 import App from './App.tsx'
+import { SosProvider } from '@/context/SosContext'
+import { clerkPublishableKey } from '@/lib/clerkConfig'
 import { RootErrorBoundary } from './RootErrorBoundary.tsx'
+
+const appTree = (
+  <SosProvider>
+    <App />
+  </SosProvider>
+)
 
 createRoot(document.getElementById('root')!).render(
   <RootErrorBoundary>
-    <App />
+    {clerkPublishableKey ? (
+      <ClerkProvider
+        publishableKey={clerkPublishableKey}
+        appearance={{
+          baseTheme: dark,
+          variables: { colorPrimary: '#EE3F2C', colorTextOnPrimaryBackground: '#ffffff' },
+        }}
+      >
+        {appTree}
+      </ClerkProvider>
+    ) : (
+      appTree
+    )}
   </RootErrorBoundary>,
 )

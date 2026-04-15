@@ -1,16 +1,11 @@
-import { useEffect, useRef } from 'react'
-import L from 'leaflet'
+import { useEffect, useRef, useState } from 'react'
 import { Crosshair, MapPin, Navigation } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useCommuteLocations } from '@/context/CommuteLocationsContext'
 import { formatCoordsShort } from '@/lib/geoMetro'
-
-const OSM = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-
-function markerHtml(label: string, bg: string) {
-  return `<div style="width:28px;height:28px;border-radius:50%;background:${bg};color:#fff;font:bold 11px/28px system-ui;text-align:center;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)">${label}</div>`
-}
+import { gmFitBounds } from '@/lib/googleMapsHelpers'
+import { hasGoogleMapsApiKey, loadGoogleMaps } from '@/lib/googleMapsLoader'
 
 export function CommuteLocationPicker() {
   const {
@@ -26,14 +21,15 @@ export function CommuteLocationPicker() {
   } = useCommuteLocations()
 
   const elRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const markersRef = useRef<L.LayerGroup | null>(null)
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const markerARef = useRef<google.maps.Marker | null>(null)
+  const markerBRef = useRef<google.maps.Marker | null>(null)
   const pickModeRef = useRef(pickMode)
   const setFromRef = useRef(setFrom)
   const setToRef = useRef(setTo)
   const setPickModeRef = useRef(setPickMode)
-  /** After "My location", fly to A instead of zooming out to fit A+B (often very far apart). */
   const focusFromAfterGeoRef = useRef(false)
+  const [mapEpoch, setMapEpoch] = useState(0)
 
   pickModeRef.current = pickMode
   setFromRef.current = setFrom
@@ -44,32 +40,87 @@ export function CommuteLocationPicker() {
     const el = elRef.current
     if (!el) return
 
-    const map = L.map(el, { zoomControl: true }).setView([(from.lat + to.lat) / 2, (from.lng + to.lng) / 2], 12)
-    mapRef.current = map
-    L.tileLayer(OSM, { maxZoom: 19, attribution: '© OSM' }).addTo(map)
-    markersRef.current = L.layerGroup().addTo(map)
+    if (!hasGoogleMapsApiKey()) {
+      el.innerHTML =
+        '<div class="flex h-full items-center justify-center bg-zinc-900 p-3 text-center text-[11px] text-amber-200/90">Set <code class="mx-1 rounded bg-black/40 px-1">VITE_GOOGLE_MAPS_API_KEY</code> in .env.local</div>'
+      return
+    }
 
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      const mode = pickModeRef.current
-      if (mode === 'from') {
-        setFromRef.current({ lat: e.latlng.lat, lng: e.latlng.lng })
-        setPickModeRef.current('none')
-      } else if (mode === 'to') {
-        setToRef.current({ lat: e.latlng.lat, lng: e.latlng.lng })
-        setPickModeRef.current('none')
-      }
+    let cancelled = false
+    let clickListener: google.maps.MapsEventListener | null = null
+    let ro: ResizeObserver | null = null
+
+    void loadGoogleMaps().then((g) => {
+      if (cancelled || !el) return
+
+      const map = new g.maps.Map(el, {
+        center: { lat: (from.lat + to.lat) / 2, lng: (from.lng + to.lng) / 2 },
+        zoom: 12,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      })
+      mapRef.current = map
+      setMapEpoch((n) => n + 1)
+
+      const ma = new g.maps.Marker({
+        map,
+        label: { text: 'A', color: 'white', fontWeight: 'bold' },
+        icon: {
+          path: g.maps.SymbolPath.CIRCLE,
+          fillColor: '#EE3F2C',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale: 12,
+        },
+      })
+      const mb = new g.maps.Marker({
+        map,
+        label: { text: 'B', color: 'white', fontWeight: 'bold' },
+        icon: {
+          path: g.maps.SymbolPath.CIRCLE,
+          fillColor: '#2563eb',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale: 12,
+        },
+      })
+      markerARef.current = ma
+      markerBRef.current = mb
+
+      clickListener = map.addListener('click', (e: google.maps.MapMouseEvent) => {
+        const ll = e.latLng
+        if (!ll) return
+        const mode = pickModeRef.current
+        const lat = ll.lat()
+        const lng = ll.lng()
+        if (mode === 'from') {
+          setFromRef.current({ lat, lng })
+          setPickModeRef.current('none')
+        } else if (mode === 'to') {
+          setToRef.current({ lat, lng })
+          setPickModeRef.current('none')
+        }
+      })
+
+      ro = new ResizeObserver(() => {
+        if (mapRef.current) g.maps.event.trigger(mapRef.current, 'resize')
+      })
+      ro.observe(el)
+      window.setTimeout(() => g.maps.event.trigger(map, 'resize'), 280)
     })
 
-    const ro = new ResizeObserver(() => map.invalidateSize())
-    ro.observe(el)
-    const t = window.setTimeout(() => map.invalidateSize(), 280)
-
     return () => {
-      window.clearTimeout(t)
-      ro.disconnect()
-      map.remove()
+      cancelled = true
+      clickListener?.remove()
+      ro?.disconnect()
+      markerARef.current?.setMap(null)
+      markerBRef.current?.setMap(null)
+      markerARef.current = null
+      markerBRef.current = null
       mapRef.current = null
-      markersRef.current = null
     }
   }, [])
 
@@ -79,42 +130,27 @@ export function CommuteLocationPicker() {
 
   useEffect(() => {
     const map = mapRef.current
-    const g = markersRef.current
-    if (!map || !g) return
-    g.clearLayers()
+    const ma = markerARef.current
+    const mb = markerBRef.current
+    if (!map || !ma || !mb) return
 
-    const iconA = L.divIcon({
-      className: 'commute-pin-icon',
-      html: markerHtml('A', '#EE3F2C'),
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-    })
-    const iconB = L.divIcon({
-      className: 'commute-pin-icon',
-      html: markerHtml('B', '#2563eb'),
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-    })
-
-    L.marker([from.lat, from.lng], { icon: iconA }).addTo(g).bindPopup('From (start)')
-    L.marker([to.lat, to.lng], { icon: iconB }).addTo(g).bindPopup('To (destination)')
+    ma.setPosition({ lat: from.lat, lng: from.lng })
+    ma.setTitle('From (start)')
+    mb.setPosition({ lat: to.lat, lng: to.lng })
+    mb.setTitle('To (destination)')
 
     if (focusFromAfterGeoRef.current) {
       focusFromAfterGeoRef.current = false
-      const run = () => {
-        map.invalidateSize()
-        map.flyTo([from.lat, from.lng], 16, {
-          duration: 0.85,
-          easeLinearity: 0.22,
-        })
-      }
-      requestAnimationFrame(run)
+      map.panTo({ lat: from.lat, lng: from.lng })
+      map.setZoom(16)
       return
     }
 
-    const bounds = L.latLngBounds([from.lat, from.lng], [to.lat, to.lng])
-    map.fitBounds(bounds, { padding: [28, 28], maxZoom: 14 })
-  }, [from, to])
+    gmFitBounds(map, [
+      { lat: from.lat, lng: from.lng },
+      { lat: to.lat, lng: to.lng },
+    ], 28)
+  }, [from, to, mapEpoch])
 
   return (
     <section

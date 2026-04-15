@@ -1,19 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Activity, Clock, Radio } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Activity, Clock, Loader2, Radio, Sparkles } from 'lucide-react'
 
 import { useCommuteLocations } from '@/context/CommuteLocationsContext'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { distanceKm, formatCoordsShort, inferMetroForTrip } from '@/lib/geoMetro'
 import {
+  aggregateAnomalyLevel,
+  augmentPredictionsWithAnomaly,
   buildPredictions,
   CORRIDORS,
   recommendAction,
-  type CorridorPrediction,
+  type CorridorPredictionWithAnomaly,
   type CorridorSensors,
   type MetroCity,
   type Recommendation,
 } from '@/lib/congestionEngine'
+import { buildCongestionNarrativePrompt } from '@/lib/congestionNarrative'
+import { callClaudeText } from '@/lib/jamClaude'
 import type { WsStatus } from '@/hooks/useCommuteWebSocket'
 
 function severityColor(score: number): string {
@@ -81,10 +85,10 @@ export function CongestionPredictorTab({ corridors, lastSnapshotTs, wsStatus }: 
 
   const departureDate = useMemo(() => new Date(departure), [departure])
 
-  const predictions = useMemo(
-    () => buildPredictions(filteredSensors, departureDate),
-    [filteredSensors, departureDate],
-  )
+  const predictions = useMemo((): CorridorPredictionWithAnomaly[] => {
+    const base = buildPredictions(filteredSensors, departureDate)
+    return augmentPredictionsWithAnomaly(base, departureDate)
+  }, [filteredSensors, departureDate])
 
   const rec = useMemo(
     () =>
@@ -97,9 +101,94 @@ export function CongestionPredictorTab({ corridors, lastSnapshotTs, wsStatus }: 
     [predictions, from, to, tripKm],
   )
 
+  const aggregateAnomaly = useMemo(() => aggregateAnomalyLevel(predictions), [predictions])
+
+  const [narrative, setNarrative] = useState<string | null>(null)
+  const [narrativeLoading, setNarrativeLoading] = useState(false)
+  const [narrativeErr, setNarrativeErr] = useState<string | null>(null)
+  const narrativeSeq = useRef(0)
+
+  useEffect(() => {
+    const hasKey = Boolean(import.meta.env.VITE_ANTHROPIC_API_KEY)
+    if (!hasKey) {
+      setNarrative(null)
+      setNarrativeErr(null)
+      setNarrativeLoading(false)
+      return
+    }
+    const seq = ++narrativeSeq.current
+    const t = window.setTimeout(() => {
+      const prompt = buildCongestionNarrativePrompt({
+        city,
+        departureIso: departureDate.toISOString(),
+        fromLabel: `From ${formatCoordsShort(from)}`,
+        toLabel: `To ${formatCoordsShort(to)}`,
+        rec,
+        predictions,
+      })
+      setNarrativeLoading(true)
+      setNarrativeErr(null)
+      void callClaudeText(prompt)
+        .then((text) => {
+          if (narrativeSeq.current !== seq) return
+          setNarrative(text.trim())
+        })
+        .catch((e: unknown) => {
+          if (narrativeSeq.current !== seq) return
+          setNarrativeErr(e instanceof Error ? e.message : 'Narration failed')
+          setNarrative(null)
+        })
+        .finally(() => {
+          if (narrativeSeq.current !== seq) return
+          setNarrativeLoading(false)
+        })
+    }, 450)
+    return () => window.clearTimeout(t)
+  }, [city, departureDate, from, to, rec, predictions])
+
   return (
     <div className="flex flex-col gap-10 md:gap-12">
       <CardRec rec={rec} />
+
+      {aggregateAnomaly !== 'none' ? (
+        <p
+          className={`rounded-lg border px-3 py-2 text-sm ${
+            aggregateAnomaly === 'severe'
+              ? 'border-red-500/40 bg-red-950/35 text-red-100/95'
+              : 'border-amber-500/35 bg-amber-950/30 text-amber-100/95'
+          }`}
+        >
+          Worse than usual for this hour (simulated baseline). Demo only — not live traffic authority
+          data.
+        </p>
+      ) : null}
+
+      <div className="rounded-xl border border-violet-500/25 bg-violet-950/20 p-4 md:p-5">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-300/90">
+          <Sparkles className="size-3.5" />
+          Plain English (GenAI)
+        </div>
+        {!import.meta.env.VITE_ANTHROPIC_API_KEY ? (
+          <p className="mt-2 text-sm text-white/60">
+            Add{' '}
+            <code className="rounded bg-white/10 px-1 text-xs text-white/85">VITE_ANTHROPIC_API_KEY</code> for AI
+            narration (demo).
+          </p>
+        ) : narrativeLoading ? (
+          <p className="mt-3 flex items-center gap-2 text-sm text-white/70">
+            <Loader2 className="size-4 shrink-0 animate-spin text-violet-400" />
+            Generating summary…
+          </p>
+        ) : narrativeErr ? (
+          <p className="mt-2 text-sm text-red-300/90" role="alert">
+            {narrativeErr}
+          </p>
+        ) : narrative ? (
+          <p className="mt-3 text-sm leading-relaxed text-white/85">{narrative}</p>
+        ) : (
+          <p className="mt-2 text-sm text-white/45">Summary will appear here.</p>
+        )}
+      </div>
 
       <div className="grid gap-6 rounded-xl border border-white/10 bg-[#0a0a0a] p-4 md:grid-cols-2 md:p-6">
         <div className="space-y-2">
@@ -167,7 +256,7 @@ export function CongestionPredictorTab({ corridors, lastSnapshotTs, wsStatus }: 
         </p>
         <div className="mt-6 space-y-5">
           {predictions.map((p) => (
-            <CorridorBars key={p.id} p={p} />
+            <CorridorBars key={p.id} p={p} showAnomaly />
           ))}
         </div>
       </div>
@@ -201,14 +290,14 @@ export function CongestionPredictorTab({ corridors, lastSnapshotTs, wsStatus }: 
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/8 bg-black/40 px-3 py-2 text-[11px] text-white/45">
         <Activity className="size-3.5 text-[#EE3F2C]" />
-        Model: weighted load (vehicles / speed / density) × time-of-day × historical peak — demo
-        only, not traffic authority data.
+        Model: weighted load (vehicles / speed / density) × time-of-day × historical peak — demo only.
+        “Vs baseline” uses a mock hourly baseline (not real ML). GenAI summary optional via Anthropic key.
       </div>
     </div>
   )
 }
 
-function CorridorBars({ p }: { p: CorridorPrediction }) {
+function CorridorBars({ p, showAnomaly }: { p: CorridorPredictionWithAnomaly; showAnomaly?: boolean }) {
   const rows: { label: string; score: number }[] = [
     { label: 'Now', score: p.now },
     { label: '+15', score: p.t15 },
@@ -218,17 +307,30 @@ function CorridorBars({ p }: { p: CorridorPrediction }) {
     <div>
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-medium text-white">{p.name}</span>
-        <span
-          className={`text-[10px] font-semibold uppercase ${
-            p.severity === 'low'
-              ? 'text-emerald-400'
-              : p.severity === 'moderate'
-                ? 'text-amber-300'
-                : 'text-red-400'
-          }`}
-        >
-          {p.severity}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {showAnomaly && p.anomaly !== 'none' ? (
+            <span
+              className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+                p.anomaly === 'severe'
+                  ? 'bg-red-500/25 text-red-300'
+                  : 'bg-amber-500/20 text-amber-200/95'
+              }`}
+            >
+              vs baseline: {p.anomaly}
+            </span>
+          ) : null}
+          <span
+            className={`text-[10px] font-semibold uppercase ${
+              p.severity === 'low'
+                ? 'text-emerald-400'
+                : p.severity === 'moderate'
+                  ? 'text-amber-300'
+                  : 'text-red-400'
+            }`}
+          >
+            {p.severity}
+          </span>
+        </div>
       </div>
       <div className="space-y-2">
         {rows.map((r) => (

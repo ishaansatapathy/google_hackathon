@@ -96,6 +96,9 @@ export function scoreFromSensors(s: CorridorSensors): number {
   return clamp(vPart + speedPart + densityPart, 0, 100)
 }
 
+/** Simulated anomaly vs a mock hourly baseline — not trained on real traffic. */
+export type AnomalyLevel = 'none' | 'elevated' | 'severe'
+
 export interface CorridorPrediction {
   id: string
   name: string
@@ -105,6 +108,58 @@ export interface CorridorPrediction {
   t15: number
   t30: number
   severity: 'low' | 'moderate' | 'high'
+}
+
+export interface CorridorPredictionWithAnomaly extends CorridorPrediction {
+  anomaly: AnomalyLevel
+  /** Mock “typical” score for this corridor + hour — demo only */
+  mockBaseline: number
+  /** Average of now / +15 / +30 used vs baseline */
+  blendedObserved: number
+}
+
+/**
+ * Mock hourly baseline per corridor (deterministic hash + hour bucket).
+ * Simulated baseline for demo — not trained on real traffic.
+ */
+export function mockHourlyBaseline(corridorId: string, hour: number): number {
+  let h = 0
+  for (let i = 0; i < corridorId.length; i++) h = (Math.imul(31, h) + corridorId.charCodeAt(i)) | 0
+  const mix = (Math.abs(h) + hour * 13) % 26
+  return 36 + mix
+}
+
+function anomalyFromBlended(blended: number, baseline: number): AnomalyLevel {
+  const excess = Math.max(0, blended - baseline)
+  const sigma = 10
+  const zLike = excess / sigma
+  if (zLike < 0.85) return 'none'
+  if (zLike < 1.65) return 'elevated'
+  return 'severe'
+}
+
+/** Attach z-score-like anomaly flags vs mock baseline (same formula scores, demo statistics). */
+export function augmentPredictionsWithAnomaly(
+  preds: CorridorPrediction[],
+  departure: Date,
+): CorridorPredictionWithAnomaly[] {
+  const hour = departure.getHours()
+  return preds.map((p) => {
+    const blendedObserved = (p.now + p.t15 + p.t30) / 3
+    const mockBaseline = mockHourlyBaseline(p.id, hour)
+    return {
+      ...p,
+      blendedObserved,
+      mockBaseline,
+      anomaly: anomalyFromBlended(blendedObserved, mockBaseline),
+    }
+  })
+}
+
+export function aggregateAnomalyLevel(preds: CorridorPredictionWithAnomaly[]): AnomalyLevel {
+  if (preds.some((x) => x.anomaly === 'severe')) return 'severe'
+  if (preds.some((x) => x.anomaly === 'elevated')) return 'elevated'
+  return 'none'
 }
 
 function severity(score: number): 'low' | 'moderate' | 'high' {

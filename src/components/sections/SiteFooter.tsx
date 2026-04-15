@@ -6,6 +6,7 @@ const links = [
   { href: '#/commute', label: 'Commute' },
   { href: '#/commute/neighbourhood', label: 'Friendly neighbourhood' },
   { href: '#/jaam', label: 'Jaam' },
+  { href: '#/emergency', label: 'Emergency services' },
   { href: '#/home/features', label: 'Product' },
   { href: '#/home/about', label: 'About' },
   { href: '#/home/contact', label: 'Contact' },

@@ -7,6 +7,7 @@ export type CommuteMode = 'hub' | 'neighbourhood'
 
 export type ParsedHash =
   | { page: 'jaam' }
+  | { page: 'emergency' }
   | { page: 'commute'; commute: CommuteMode }
   | { page: 'home'; tab: HomeTab }
 
@@ -19,6 +20,14 @@ function normalizeTab(s: string | undefined): HomeTab {
 
 export function parseHash(): ParsedHash {
   const raw = window.location.hash.replace(/^#/, '').trim() || '/home'
+  if (
+    raw === '/emergency' ||
+    raw.startsWith('/emergency/') ||
+    raw === '/police' ||
+    raw.startsWith('/police/')
+  ) {
+    return { page: 'emergency' }
+  }
   if (raw === '/jaam' || raw.startsWith('/jaam/')) return { page: 'jaam' }
   if (raw === '/map' || raw.startsWith('/map/')) return { page: 'commute', commute: 'hub' }
   if (raw.startsWith('/commute')) {
@@ -51,6 +60,10 @@ export function getHashServerSnapshot(): ParsedHash {
 }
 
 export function setHash(parsed: ParsedHash) {
+  if (parsed.page === 'emergency') {
+    window.location.hash = '#/emergency'
+    return
+  }
   if (parsed.page === 'jaam') {
     window.location.hash = '#/jaam'
     return

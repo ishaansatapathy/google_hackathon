@@ -16,6 +16,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      '/api/sos': {
+        target: 'http://localhost:3457',
+        changeOrigin: true,
+        ws: true,
+      },
       '/api': {
         target: 'http://localhost:3456',
         changeOrigin: true,

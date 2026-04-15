@@ -12,7 +12,6 @@ import { escalatedMessage, formalComplaint } from '@/lib/sadakbolo/TextFormatter
 import type { AnalysisResult, SadakReport } from '@/lib/sadakbolo/types'
 
 type Props = {
-  isActive: boolean
   reportLat: number
   reportLng: number
   locationLabel: string
@@ -21,7 +20,6 @@ type Props = {
 }
 
 export function SadakBolo({
-  isActive,
   reportLat,
   reportLng,
   locationLabel,
@@ -109,8 +107,6 @@ export function SadakBolo({
     }
   }
 
-  if (!isActive) return null
-
   return (
     <>
       <button
@@ -119,7 +115,7 @@ export function SadakBolo({
           setOpen(true)
           resetFlow()
         }}
-        className="absolute bottom-4 right-4 z-[600] flex items-center gap-2 rounded-full border border-white/20 bg-[#EE3F2C] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-black/40 transition hover:bg-[#d63b28]"
+        className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2 rounded-full border border-white/20 bg-[#EE3F2C] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-black/50 transition hover:bg-[#d63b28]"
         aria-haspopup="dialog"
         aria-expanded={open}
       >
@@ -129,7 +125,7 @@ export function SadakBolo({
 
       {open ? (
         <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-labelledby="sadakbolo-title"

@@ -10,8 +10,10 @@ import { SiteFooter } from '@/components/sections/SiteFooter'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useHashRoute } from '@/hooks/useHashRoute'
 import { setHash, type HomeTab } from '@/lib/hashRoute'
+import { RequireAuth } from '@/components/auth/RequireAuth'
 import { CommutePage } from '@/pages/CommutePage'
 import { JaamPage } from '@/pages/JaamPage'
+import { EmergencyServicesPage } from '@/pages/EmergencyServicesPage'
 
 const PAGE_TABS = {
   features: 'features',
@@ -39,11 +41,27 @@ function App() {
   }, [route.page, homeTab])
 
   if (route.page === 'commute') {
-    return <CommutePage />
+    return (
+      <RequireAuth>
+        <CommutePage />
+      </RequireAuth>
+    )
+  }
+
+  if (route.page === 'emergency') {
+    return (
+      <RequireAuth>
+        <EmergencyServicesPage />
+      </RequireAuth>
+    )
   }
 
   if (route.page === 'jaam') {
-    return <JaamPage />
+    return (
+      <RequireAuth>
+        <JaamPage />
+      </RequireAuth>
+    )
   }
 
   return (

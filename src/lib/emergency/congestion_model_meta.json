@@ -1,0 +1,8 @@
+{
+  "model": "LinearRegression",
+  "features": ["sin(hour_phase)", "cos(hour_phase)", "is_weekend"],
+  "r2_train": 0.0,
+  "intercept": 0,
+  "coef": [0, 0, 0],
+  "note": "Run `python scripts/train_congestion_dummy.py` after `pip install -r scripts/requirements-congestion.txt` to fill metrics. Live UI uses congestionPredictor.ts."
+}

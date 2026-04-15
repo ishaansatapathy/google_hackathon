@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import L from 'leaflet'
 import {
   Bike,
   Car,
@@ -11,9 +10,8 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { SadakBolo } from '@/components/sadakbolo/SadakBolo'
+import { useCommuteDrivingRoute } from '@/context/CommuteDrivingRouteContext'
 import { useCommuteLocations } from '@/context/CommuteLocationsContext'
-import { fetchComplaints } from '@/lib/sadakbolo/api'
 import type { SadakReport } from '@/lib/sadakbolo/types'
 import type { TrafficRouteEvent } from '@/hooks/useCommuteWebSocket'
 import {
@@ -30,8 +28,8 @@ import {
   getRouteDisplayMetrics,
   type RouteLeg,
 } from '@/lib/osrmRoutes'
-
-const OSM_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+import { clearGmOverlays, gmDashedPolyline, type GmOverlay } from '@/lib/googleMapsHelpers'
+import { hasGoogleMapsApiKey, loadGoogleMaps } from '@/lib/googleMapsLoader'
 
 const COLORS = {
   walking: '#22c55e',
@@ -40,25 +38,26 @@ const COLORS = {
   'driving-alt': '#94a3b8',
 } as const
 
-function riskMarkerHtml(kind: RiskKind): string {
-  const bg =
-    kind === 'accident' ? '#ef4444' : kind === 'traffic' ? '#f59e0b' : '#64748b'
-  return `<div class="risk-marker-pulse" style="--risk-bg:${bg}"></div>`
+function riskKindColor(kind: RiskKind): string {
+  return kind === 'accident' ? '#ef4444' : kind === 'traffic' ? '#f59e0b' : '#64748b'
 }
 
 type RoutesTabProps = {
   trafficRouteEvent: TrafficRouteEvent | null
   isActive: boolean
+  sadakReports: SadakReport[]
 }
 
-export function RoutesTab({ trafficRouteEvent, isActive }: RoutesTabProps) {
+export function RoutesTab({ trafficRouteEvent, isActive, sadakReports }: RoutesTabProps) {
   const { from, to } = useCommuteLocations()
+  const { setDrivingCoordinates } = useCommuteDrivingRoute()
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const routeLayerRef = useRef<L.LayerGroup | null>(null)
-  const riskLayerRef = useRef<L.LayerGroup | null>(null)
-  const sadakComplaintsLayerRef = useRef<L.LayerGroup | null>(null)
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const routeOverlaysRef = useRef<GmOverlay[]>([])
+  const riskOverlaysRef = useRef<GmOverlay[]>([])
+  const sadakOverlaysRef = useRef<GmOverlay[]>([])
+  const [mapEpoch, setMapEpoch] = useState(0)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,7 +73,21 @@ export function RoutesTab({ trafficRouteEvent, isActive }: RoutesTabProps) {
     drive: SimulatedRisk[]
   }>({ walk: [], bike: [], drive: [] })
 
-  const [sadakReports, setSadakReports] = useState<SadakReport[]>([])
+  /** New A/B → clear cached routes so corridor hints don’t use stale OSRM geometry */
+  useEffect(() => {
+    setWalk(null)
+    setBike(null)
+    setDriveLegs([])
+    setActiveDriveIndex(0)
+    setRiskBundle({ walk: [], bike: [], drive: [] })
+    setError(null)
+    setDrivingCoordinates(null)
+  }, [from.lat, from.lng, to.lat, to.lng, setDrivingCoordinates])
+
+  useEffect(() => {
+    const leg = driveLegs[activeDriveIndex] ?? driveLegs[0]
+    setDrivingCoordinates(leg?.coordinates ?? null)
+  }, [activeDriveIndex, driveLegs, setDrivingCoordinates])
 
   const lastTrafficTs = useRef<number>(0)
   const pendingAlternateRef = useRef(false)
@@ -97,42 +110,53 @@ export function RoutesTab({ trafficRouteEvent, isActive }: RoutesTabProps) {
   }, [driveLegs])
 
   useEffect(() => {
-    void fetchComplaints().then(setSadakReports)
-  }, [])
-
-  useEffect(() => {
     const el = containerRef.current
     if (!el) return
 
-    const map = L.map(el, { zoomControl: true }).setView([from.lat, from.lng], 12)
-    mapRef.current = map
-    L.tileLayer(OSM_URL, {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map)
-    routeLayerRef.current = L.layerGroup().addTo(map)
-    riskLayerRef.current = L.layerGroup().addTo(map)
-    sadakComplaintsLayerRef.current = L.layerGroup().addTo(map)
+    if (!hasGoogleMapsApiKey()) {
+      el.innerHTML =
+        '<div class="flex h-full items-center justify-center bg-zinc-900 p-4 text-center text-xs text-amber-200/90">Add VITE_GOOGLE_MAPS_API_KEY to .env.local</div>'
+      return
+    }
 
-    const ro = new ResizeObserver(() => map.invalidateSize())
-    ro.observe(el)
-    const t = window.setTimeout(() => map.invalidateSize(), 200)
+    let cancelled = false
+    let ro: ResizeObserver | null = null
+
+    void loadGoogleMaps().then((g) => {
+      if (cancelled || !el) return
+      const map = new g.maps.Map(el, {
+        center: { lat: from.lat, lng: from.lng },
+        zoom: 12,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      })
+      mapRef.current = map
+      setMapEpoch((n) => n + 1)
+
+      ro = new ResizeObserver(() => {
+        if (mapRef.current) g.maps.event.trigger(mapRef.current, 'resize')
+      })
+      ro.observe(el)
+      window.setTimeout(() => g.maps.event.trigger(map, 'resize'), 200)
+    })
 
     return () => {
-      window.clearTimeout(t)
-      ro.disconnect()
-      map.remove()
+      cancelled = true
+      ro?.disconnect()
+      clearGmOverlays(routeOverlaysRef.current)
+      clearGmOverlays(riskOverlaysRef.current)
+      clearGmOverlays(sadakOverlaysRef.current)
       mapRef.current = null
-      routeLayerRef.current = null
-      riskLayerRef.current = null
-      sadakComplaintsLayerRef.current = null
     }
   }, [])
 
   useEffect(() => {
     if (!isActive || !mapRef.current) return
-    const id = requestAnimationFrame(() => mapRef.current?.invalidateSize())
-    const t = window.setTimeout(() => mapRef.current?.invalidateSize(), 150)
+    const g = window.google
+    if (!g?.maps) return
+    const id = requestAnimationFrame(() => g.maps.event.trigger(mapRef.current!, 'resize'))
+    const t = window.setTimeout(() => g.maps.event.trigger(mapRef.current!, 'resize'), 150)
     return () => {
       cancelAnimationFrame(id)
       window.clearTimeout(t)
@@ -147,42 +171,59 @@ export function RoutesTab({ trafficRouteEvent, isActive }: RoutesTabProps) {
       highlightDrive: number,
       risks: { walk: SimulatedRisk[]; bike: SimulatedRisk[]; drive: SimulatedRisk[] },
     ) => {
-      const group = routeLayerRef.current
-      const riskG = riskLayerRef.current
       const map = mapRef.current
-      if (!group || !map || !riskG) return
-      group.clearLayers()
-      riskG.clearLayers()
+      if (!map || !window.google?.maps) return
 
-      L.marker([from.lat, from.lng]).bindPopup('From').addTo(group)
-      L.marker([to.lat, to.lng]).bindPopup('To').addTo(group)
+      clearGmOverlays(routeOverlaysRef.current)
+      clearGmOverlays(riskOverlaysRef.current)
 
-      const addLine = (
-        leg: RouteLeg,
-        color: string,
-        weight: number,
-        dash: string | undefined,
-        opacity: number,
-      ) => {
+      const mFrom = new google.maps.Marker({
+        position: { lat: from.lat, lng: from.lng },
+        map,
+        title: 'From',
+        label: { text: 'A', color: 'white', fontWeight: 'bold' },
+      })
+      const mTo = new google.maps.Marker({
+        position: { lat: to.lat, lng: to.lng },
+        map,
+        title: 'To',
+        label: { text: 'B', color: 'white', fontWeight: 'bold' },
+      })
+      routeOverlaysRef.current.push(mFrom, mTo)
+
+      const pathFromLeg = (leg: RouteLeg) =>
+        leg.coordinates.map(([lat, lng]) => ({ lat, lng })) as google.maps.LatLngLiteral[]
+
+      const addSolid = (leg: RouteLeg, color: string, weight: number, opacity: number) => {
         if (leg.coordinates.length < 2) return
-        L.polyline(leg.coordinates, {
-          color,
-          weight,
-          opacity,
-          dashArray: dash,
-        }).addTo(group)
+        const pl = new google.maps.Polyline({
+          path: pathFromLeg(leg),
+          strokeColor: color,
+          strokeWeight: weight,
+          strokeOpacity: opacity,
+          map,
+        })
+        routeOverlaysRef.current.push(pl)
       }
 
-      if (w) addLine(w, COLORS.walking, 5, undefined, 0.82)
-      if (b) addLine(b, COLORS.cycling, 5, '8 6', 0.82)
+      if (w) addSolid(w, COLORS.walking, 5, 0.82)
+      if (b && b.coordinates.length >= 2) {
+        const pl = gmDashedPolyline(pathFromLeg(b), COLORS.cycling, 5, 0.82, map)
+        routeOverlaysRef.current.push(pl)
+      }
 
       drives.forEach((leg, i) => {
+        if (leg.coordinates.length < 2) return
         const isActiveLeg = i === highlightDrive
         const color = i === 0 ? COLORS['driving-primary'] : COLORS['driving-alt']
         const weight = isActiveLeg ? 7 : 4
         const op = isActiveLeg ? 0.94 : 0.42
-        const dash = i === 0 ? undefined : '10 8'
-        addLine(leg, color, weight, dash, op)
+        if (i === 0) {
+          addSolid(leg, color, weight, op)
+        } else {
+          const pl = gmDashedPolyline(pathFromLeg(leg), color, weight, op, map)
+          routeOverlaysRef.current.push(pl)
+        }
       })
 
       const primaryDrive = drives[0]
@@ -190,50 +231,64 @@ export function RoutesTab({ trafficRouteEvent, isActive }: RoutesTabProps) {
       const displayRisks = driveRisks.length ? driveRisks : [...risks.walk, ...risks.bike].slice(0, 5)
 
       displayRisks.forEach((r) => {
-        const icon = L.divIcon({
-          className: 'risk-risk-icon',
-          html: riskMarkerHtml(r.kind),
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
+        const hue = riskKindColor(r.kind)
+        const mk = new google.maps.Marker({
+          position: { lat: r.lat, lng: r.lng },
+          map,
+          title: `${r.label} (~${r.severityScore})`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: hue,
+            fillOpacity: 0.95,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+            scale: 12,
+          },
         })
-        L.marker([r.lat, r.lng], { icon })
-          .bindPopup(`<strong>${r.label}</strong><br/><span style="font-size:11px">Severity ~${r.severityScore}</span>`)
-          .addTo(riskG)
+        riskOverlaysRef.current.push(mk)
       })
 
-      const bounds = L.latLngBounds([from.lat, from.lng], [to.lat, to.lng])
+      const bounds = new google.maps.LatLngBounds()
+      bounds.extend({ lat: from.lat, lng: from.lng })
+      bounds.extend({ lat: to.lat, lng: to.lng })
       ;[w, b, ...drives].forEach((leg) => {
-        if (leg?.coordinates.length) bounds.extend(leg.coordinates)
+        if (leg?.coordinates.length) {
+          leg.coordinates.forEach(([lat, lng]) => bounds.extend({ lat, lng }))
+        }
       })
-      displayRisks.forEach((r) => bounds.extend([r.lat, r.lng]))
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 })
+      displayRisks.forEach((r) => bounds.extend({ lat: r.lat, lng: r.lng }))
+      map.fitBounds(bounds, 40)
     },
     [from, to],
   )
 
   useEffect(() => {
+    if (!mapRef.current) return
     drawRoutes(walk, bike, driveLegs, activeDriveIndex, riskBundle)
-  }, [walk, bike, driveLegs, activeDriveIndex, riskBundle, drawRoutes])
+  }, [walk, bike, driveLegs, activeDriveIndex, riskBundle, drawRoutes, mapEpoch])
 
   useEffect(() => {
-    const layer = sadakComplaintsLayerRef.current
-    if (!layer) return
-    layer.clearLayers()
+    const map = mapRef.current
+    if (!map || !window.google?.maps) return
+    clearGmOverlays(sadakOverlaysRef.current)
     sadakReports.forEach((r) => {
       const hue = r.severity >= 8 ? '#ef4444' : r.severity >= 5 ? '#f59e0b' : '#22c55e'
-      const icon = L.divIcon({
-        className: 'report-marker-icon',
-        html: `<div class="report-marker-dot" style="background:${hue}"/>`,
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+      const mk = new google.maps.Marker({
+        position: { lat: r.lat, lng: r.lng },
+        map,
+        title: `SadakBolo ${r.type} · ${r.severity}/10`,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: hue,
+          fillOpacity: 0.95,
+          strokeColor: '#ffffff',
+          strokeWeight: 1,
+          scale: 8,
+        },
       })
-      L.marker([r.lat, r.lng], { icon })
-        .bindPopup(
-          `<strong>SadakBolo</strong><br/>${String(r.type).replace('_', ' ')} · ${r.severity}/10 · ${r.priority}<br/><span style="font-size:11px">${new Date(r.timestamp).toLocaleString()}</span>`,
-        )
-        .addTo(layer)
+      sadakOverlaysRef.current.push(mk)
     })
-  }, [sadakReports])
+  }, [sadakReports, mapEpoch])
 
   async function calculateRoutes() {
     setError(null)
@@ -275,10 +330,6 @@ export function RoutesTab({ trafficRouteEvent, isActive }: RoutesTabProps) {
   }
 
   const driveActive = driveLegs[activeDriveIndex] ?? driveLegs[0] ?? null
-
-  const reportLat = (from.lat + to.lat) / 2
-  const reportLng = (from.lng + to.lng) / 2
-  const reportLabel = 'Midpoint of your From → To route (demo anchor)'
 
   return (
     <div className="flex flex-col gap-6 rounded-xl border border-white/10 bg-[#0a0a0a] p-4 md:gap-8 md:p-6">
@@ -324,20 +375,10 @@ export function RoutesTab({ trafficRouteEvent, isActive }: RoutesTabProps) {
         </div>
       )}
 
-      <div className="relative z-0">
-        <div
-          ref={containerRef}
-          className="h-[min(52vh,480px)] min-h-[320px] w-full overflow-hidden rounded-lg border border-white/10"
-        />
-        <SadakBolo
-          isActive={isActive}
-          reportLat={reportLat}
-          reportLng={reportLng}
-          locationLabel={reportLabel}
-          existingReports={sadakReports}
-          onSubmitted={(r) => setSadakReports((prev) => [...prev, r])}
-        />
-      </div>
+      <div
+        ref={containerRef}
+        className="relative z-0 h-[min(52vh,480px)] min-h-[320px] w-full overflow-hidden rounded-lg border border-white/10"
+      />
 
       <div className="flex flex-wrap items-center gap-2 text-[10px] text-white/45">
         <ShieldAlert className="size-3.5 text-amber-400/90" />
