@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local Jam demo audio (add your own MP3s; large / licensed files not tracked)
+public/jaam/*.mp3

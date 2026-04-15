@@ -1,52 +1,20 @@
-import { Phone } from 'lucide-react'
+import { TargoLogo } from '@/components/TargoLogo'
+import { CLIP_BTN, VIDEO_URL } from '@/lib/targo'
 
-const BRAND_RED = '#EE3F2C'
-const VIDEO_URL =
-  'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260227_042027_c4b2f2ea-1c7c-4d6e-9e3d-81a78063703f.mp4'
-
-/** 11px diagonal chamfers on top-right and bottom-left */
-const clipBtn =
-  'polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,11px 100%,0 calc(100% - 11px))'
-
-function TargoLogo({ className }: { className?: string }) {
-  return (
-    <a href="#home" className={`flex items-center gap-3 ${className ?? ''}`}>
-      <svg
-        width="40"
-        height="40"
-        viewBox="0 0 40 40"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden
-      >
-        <path
-          d="M8 28 L20 8 L32 28 L26 28 L20 17 L14 28 Z"
-          fill="white"
-          opacity="0.95"
-        />
-        <path
-          d="M12 30 L20 18 L28 30"
-          stroke={BRAND_RED}
-          strokeWidth="2.5"
-          strokeLinecap="square"
-        />
-      </svg>
-      <span
-        className="text-lg font-bold tracking-[-0.04em] text-white uppercase"
-        style={{ fontFamily: "'Rubik', sans-serif" }}
-      >
-        targo
-      </span>
-    </a>
-  )
-}
+const NAV_LINKS = [
+  { href: '#/home/features', label: 'Home' },
+  { href: '#/commute', label: 'Commute' },
+  { href: '#/jaam', label: 'Jaam' },
+  { href: '#/home/features', label: 'Product' },
+  { href: '#/home/about', label: 'About' },
+  { href: '#/home/contact', label: 'Contact' },
+] as const
 
 export function TargoHero() {
   return (
     <section
       id="home"
       className="relative min-h-svh overflow-hidden bg-black text-white"
-      style={{ fontFamily: "'Rubik', sans-serif" }}
     >
       <video
         className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover opacity-100"
@@ -59,99 +27,83 @@ export function TargoHero() {
         <source src={VIDEO_URL} type="video/mp4" />
       </video>
 
+      <div
+        className="pointer-events-none absolute inset-0 z-1 bg-linear-to-r from-black/80 via-black/45 to-black/15"
+        aria-hidden
+      />
+
       <div className="relative z-10 flex min-h-svh flex-col px-8 py-6 md:px-16 md:py-8">
         <header className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="flex items-center justify-between gap-4">
             <TargoLogo />
             <a
-              href="#contact"
-              className="inline-block shrink-0 px-4 py-2 text-xs font-semibold text-white sm:hidden"
-              style={{
-                backgroundColor: BRAND_RED,
-                clipPath: clipBtn,
-              }}
+              href="#/commute/neighbourhood"
+              className="inline-flex max-w-52 shrink-0 flex-col items-center gap-0.5 px-3 py-2 text-center text-white sm:hidden"
+              style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
             >
-              Contact Us
+              <span className="text-xs font-semibold leading-tight">Friendly neighbourhood</span>
+              <span className="text-[9px] font-medium leading-snug text-white/88">
+                Congestion, routes & same-route rides
+              </span>
             </a>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 sm:justify-end">
-            <nav className="flex flex-wrap items-center gap-6 text-sm font-medium text-white/90">
-              <a href="#home" className="transition hover:text-white">
-                Home
-              </a>
-              <a href="#about" className="transition hover:text-white">
-                About
-              </a>
-              <a href="#contact" className="transition hover:text-white">
-                Contact Us
-              </a>
+            <nav className="flex flex-wrap items-center gap-5 text-[13px] font-medium tracking-wide text-white/85">
+              {NAV_LINKS.map((l) => (
+                <a key={`${l.href}-${l.label}`} href={l.href} className="transition hover:text-white">
+                  {l.label}
+                </a>
+              ))}
             </nav>
             <a
-              href="#contact"
-              className="hidden shrink-0 px-5 py-2.5 text-sm font-semibold text-white sm:inline-block"
-              style={{
-                backgroundColor: BRAND_RED,
-                clipPath: clipBtn,
-              }}
+              href="#/commute/neighbourhood"
+              className="hidden min-w-52 shrink-0 flex-col items-center justify-center gap-1 px-5 py-2.5 text-center text-white sm:inline-flex"
+              style={{ backgroundColor: '#EE3F2C', clipPath: CLIP_BTN }}
             >
-              Contact Us
+              <span className="text-[13px] font-semibold leading-tight">Friendly neighbourhood</span>
+              <span className="max-w-56 text-[10px] font-medium leading-snug text-white/88">
+                Same-route ride requests — pool the trip, skip the solo cab
+              </span>
             </a>
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col pt-10 md:pt-14">
-          <div id="about" className="max-w-[52rem]">
+        <div className="flex min-h-0 flex-1 flex-col justify-start pt-12 md:pt-16">
+          <div className="max-w-208">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">
+              Metro commute · Live congestion · Smarter departures
+            </p>
             <h1
-              className="text-[42px] font-bold uppercase leading-[1.05] tracking-[-0.04em] text-white md:text-[64px]"
-              style={{ textWrap: 'balance' }}
+              className="mt-3 text-[40px] font-bold uppercase leading-[1.08] tracking-[-0.04em] text-white md:text-[58px] lg:text-[64px]"
+              style={{ textWrap: 'balance' } as React.CSSProperties}
             >
-              Swift and Simple Transport
+              Beat the gridlock before you leave
             </h1>
-            <div className="mt-8">
-              <button
-                type="button"
-                className="px-8 py-3.5 text-sm font-semibold uppercase tracking-wide text-white"
-                style={{
-                  backgroundColor: BRAND_RED,
-                  clipPath: clipBtn,
-                }}
+            <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-white/78 md:text-[17px]">
+              Simulated corridor sensors, 15 / 30 minute congestion lookahead, and
+              one clear action — leave now, wait, or take an alternate — built for
+              Mumbai, Delhi NCR, and Bengaluru-style peaks.
+            </p>
+            <div className="mt-10 flex flex-wrap items-center gap-3">
+              <a
+                href="#/commute"
+                className="inline-flex items-center justify-center bg-[#EE3F2C] px-7 py-3 text-[13px] font-semibold uppercase tracking-wide text-white transition hover:bg-[#EE3F2C]/90"
+                style={{ clipPath: CLIP_BTN }}
               >
-                Get Started
-              </button>
-            </div>
-          </div>
-
-          <div id="contact" className="mt-auto scroll-mt-8 pt-16 md:pt-20">
-            <div
-              className="max-w-md rounded-sm border border-white/[0.12] p-6 md:p-7"
-              style={{
-                backdropFilter: 'blur(40px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(40px) saturate(180%)',
-                background:
-                  'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.02) 42%, transparent 48%, rgba(255,255,255,0.06) 100%)',
-                boxShadow:
-                  'inset 0 1px 0 0 rgba(255,255,255,0.18), inset 0 -2px 12px rgba(0,0,0,0.35)',
-              }}
-            >
-              <p className="text-sm font-medium uppercase tracking-[0.12em] text-white/80">
-                Book a Free Consultation
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-white/75">
-                Plan your next move with our logistics specialists — tailored
-                routes, clear timelines.
-              </p>
-              <button
-                type="button"
-                className="mt-5 inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-black"
-                style={{
-                  backgroundColor: '#ffffff',
-                  clipPath: clipBtn,
-                }}
+                Open commute hub
+              </a>
+              <a
+                href="#/home/about"
+                className="inline-flex items-center justify-center border border-white/20 bg-white/5 px-7 py-3 text-[13px] font-semibold uppercase tracking-wide text-white/95 transition hover:bg-white/10"
+                style={{ clipPath: CLIP_BTN }}
               >
-                <Phone className="h-4 w-4 shrink-0" strokeWidth={2} />
-                Book a Call
-              </button>
+                How it works
+              </a>
             </div>
+            <p className="mt-6 max-w-lg text-[13px] leading-relaxed text-white/45">
+              Hackathon prototype — WebSocket simulates sensor refresh; routing uses
+              public OSRM demo. Not official traffic data.
+            </p>
           </div>
         </div>
       </div>
